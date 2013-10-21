@@ -82,28 +82,42 @@
   :type 'string
   :group 'refheap)
 
+(defvar refheap-paste-id nil
+  "A string for storing the previous paste ID")
+
 (defun read-url (status)
   (search-forward "\n\n")
-  (let ((location (cdr (assoc 'url 
-                       (json-read-from-string 
-                        (buffer-substring (point) 
-                                          (point-max)))))))
-    (message "Paste created: %s" location)
+  (let ((location (cdr (assoc 'url
+			      (json-read-from-string
+			       (buffer-substring (point)
+						 (point-max)))))))
+    (message "Paste %s: %s"
+	     (if refheap-paste-id
+		 "updated" "created")
+	     location)
     (kill-new location)
-    (kill-buffer (current-buffer))))
+    (kill-buffer (current-buffer))
+
+    (let ((pattern "https?://www.refheap.com/\\(\\w+\\)"))
+      (and (string-match pattern location)
+	   (set (make-variable-buffer-local 'refheap-paste-id)
+		(match-string 1 location))))))
 
 (defun refheap-paste (text mode private)
   (let ((url-request-method "POST")
-        (url-request-extra-headers
-         '(("Content-Type" . "application/x-www-form-urlencoded")))
-        (url-request-data
-         (concat "private=" (if private "true" "false") "&"
-                 "language=" (url-hexify-string mode) "&"
-                 "contents=" (url-hexify-string text)
-                 (when (and refheap-user refheap-token) 
-                   (concat "&username=" refheap-user "&"
-                           "token=" (url-hexify-string refheap-token))))))
-    (url-retrieve "https://www.refheap.com/api/paste" 'read-url)))
+	(url-request-extra-headers
+	 '(("Content-Type" . "application/x-www-form-urlencoded")))
+	(url-request-data
+	 (concat "private=" (if private "true" "false") "&"
+		 "language=" (url-hexify-string mode) "&"
+		 "contents=" (url-hexify-string text)
+		 (when (and refheap-user refheap-token)
+		   (concat "&username=" refheap-user "&"
+			   "token=" (url-hexify-string refheap-token)))))
+	(target-url (concat "https://www.refheap.com/api/paste"
+			    (when refheap-paste-id
+			      (concat "/" refheap-paste-id)))))
+    (url-retrieve target-url 'read-url)))
 
 ;;;###autoload
 (defun refheap-paste-region (begin end &optional private)
